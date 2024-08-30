@@ -27,6 +27,10 @@ export const {
   },
   callbacks: {
     async signIn({ user, account }) {
+      // console.log({
+      //   user,
+      //   account,
+      // });
       //add from original user.id error
       if (!user.id) {
         return false; // Return false to stop the sign-in process if user ID is undefined
