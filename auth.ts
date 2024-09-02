@@ -1,12 +1,12 @@
 import NextAuth from 'next-auth';
-import authConfig from './auth.config';
+import { UserRole } from '@prisma/client';
 import { PrismaAdapter } from '@auth/prisma-adapter';
 
+import { db } from '@/lib/db';
+import authConfig from '@/auth.config';
 import { getUserById } from '@/data/user';
 import { getTwoFactorConfirmationByUserId } from '@/data/two-factor-confirmation';
-
-import { db } from './lib/db';
-import { UserRole } from '@prisma/client';
+import { getAccountByUserId } from './data/account';
 
 export const {
   handlers: { GET, POST },
@@ -28,13 +28,12 @@ export const {
   },
   callbacks: {
     async signIn({ user, account }) {
-      //add from original user.id error
-      if (!user.id) {
-        return false; // Return false to stop the sign-in process if user ID is undefined
-      }
       // Allow OAuth without email verification
       if (account?.provider !== 'credentials') return true;
 
+      if (!user.id) {
+        return false;
+      }
       const existingUser = await getUserById(user.id);
 
       // Prevent sign in without email verification
@@ -67,17 +66,30 @@ export const {
       if (session.user) {
         session.user.isTwoFactorEnabled = token.isTwoFactorEnabled as boolean;
       }
+
+      if (session.user) {
+        session.user.name = token.name;
+        session.user.email = token.email ?? '';
+        session.user.isOAuth = token.isOAuth as boolean;
+      }
+
       return session;
     },
-
     async jwt({ token }) {
       if (!token.sub) return token;
 
       const existingUser = await getUserById(token.sub);
+
       if (!existingUser) return token;
 
+      const existingAccount = await getAccountByUserId(existingUser.id);
+
+      token.isOAuth = !!existingAccount;
+      token.name = existingUser.name;
+      token.email = existingUser.email;
       token.role = existingUser.role;
       token.isTwoFactorEnabled = existingUser.isTwoFactorEnabled;
+
       return token;
     },
   },
